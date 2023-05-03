@@ -234,8 +234,8 @@ for root, dirs, files in os.walk("./bark/assets/prompts"):
 	for file in files:
 		if(file.endswith(".npz")):
 			pathpart = root.replace("./bark/assets/prompts", "")
-			if len(pathpart) < 1:
-				pathpart = "/"
+#			if len(pathpart) < 1:
+#				pathpart = "/"
 			speakers_list.append(os.path.join(pathpart, file[:-4]))
 
 speakers_list = sorted(speakers_list, key=lambda x: x.lower())
@@ -251,7 +251,7 @@ with gr.Blocks(title="Bark Enhanced Gradio GUI", mode="Bark Enhanced") as barkgu
                 placeholder = "Enter text here."
                 input_text = gr.Textbox(label="Input Text", lines=4, placeholder=placeholder)
             with gr.Column():
-                convert_to_ssml_button = gr.Button("Convert Text to SSML")
+                convert_to_ssml_button = gr.Button("Convert Text to SSML", visible=False)
         with gr.Row():
             with gr.Column():
                 examples = [
@@ -303,18 +303,19 @@ with gr.Blocks(title="Bark Enhanced Gradio GUI", mode="Bark Enhanced") as barkgu
                 tts_create_button = gr.Button("Create")
             with gr.Column():
                 hidden_checkbox = gr.Checkbox(visible=False)
-                button_delete_files = gr.Button("Clear output folder")
+                button_delete_files = gr.Button("Clear output folder", visible=False)
         with gr.Row():
             output_audio = gr.Audio(label="Generated Audio", type="filepath")
 
     with gr.Tab("Clone Voice"):
         input_audio_filename = gr.Audio(label="Input audio.wav", source="upload", type="filepath")
         transcription_text = gr.Textbox(label="Transcription Text", lines=1, placeholder="Enter Text of your Audio Sample here...")
-        initialname = "./bark/assets/prompts/custom/MeMyselfAndI"
+        initialname = "Custom_voice"
         #inputAudioFilename = gr.Textbox(label="Filename of Input Audio", lines=1, placeholder="audio.wav")
         output_voice = gr.Textbox(label="Filename of trained Voice", lines=1, placeholder=initialname, value=initialname)
         clone_voice_button = gr.Button("Create Voice")
         dummy = gr.Text(label="Progress")
+	npz_file_1 = gr.File(label=".npz file")
 
         convert_to_ssml_button.click(convert_text_to_ssml, inputs=[input_text, speaker],outputs=input_text)
         tts_create_button.click(generate_text_to_speech, inputs=[input_text, speaker, text_temp, waveform_temp, quick_gen_checkbox, complete_settings],outputs=output_audio)
@@ -322,6 +323,6 @@ with gr.Blocks(title="Bark Enhanced Gradio GUI", mode="Bark Enhanced") as barkgu
         js = "(x) => confirm('Are you sure? This will remove all files from output folder')"
         button_delete_files.click(None, None, hidden_checkbox, _js=js)
         hidden_checkbox.change(delete_output_files, [hidden_checkbox], [hidden_checkbox])
-        clone_voice_button.click(clone_voice, inputs=[input_audio_filename, transcription_text, output_voice], outputs=dummy)
+        clone_voice_button.click(clone_voice, inputs=[input_audio_filename, transcription_text, output_voice], outputs=[dummy,npz_file_1])
 
-barkgui.queue().launch(inbrowser=autolaunch)
+barkgui.queue().launch(show_error=True)
