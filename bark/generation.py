@@ -2,9 +2,6 @@ import contextlib
 import gc
 import os
 import re
-import requests
-import gc
-import sys
 
 from encodec import EncodecModel
 import funcy
@@ -19,12 +16,8 @@ from huggingface_hub import hf_hub_download
 
 from .model import GPTConfig, GPT
 from .model_fine import FineGPT, FineGPTConfig
-from .settings import initenv
 
-initenv(sys.argv)
-global_force_cpu = os.environ.get("BARK_FORCE_CPU", False)
 if (
-    global_force_cpu != True and
     torch.cuda.is_available() and
     hasattr(torch.cuda, "amp") and
     hasattr(torch.cuda.amp, "autocast") and
@@ -88,10 +81,8 @@ logger = logging.getLogger(__name__)
 CUR_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
-#default_cache_dir = os.path.join(os.path.expanduser("~"), ".cache")
-#CACHE_DIR = os.path.join(os.getenv("XDG_CACHE_HOME", default_cache_dir), "suno", "bark_v0")
-#CACHE_DIR = os.path.join(os.getcwd(), "models"
-CACHE_DIR = "./models"
+default_cache_dir = os.path.join(os.path.expanduser("~"), ".cache")
+CACHE_DIR = os.path.join(os.getenv("XDG_CACHE_HOME", default_cache_dir), "suno", "bark_v0")
 
 
 USE_SMALL_MODELS = os.environ.get("SUNO_USE_SMALL_MODELS", False)
@@ -134,7 +125,7 @@ if not hasattr(torch.nn.functional, 'scaled_dot_product_attention') and torch.cu
     )
 
 
-def grab_best_device(use_gpu=True):
+def _grab_best_device(use_gpu=True):
     if torch.cuda.device_count() > 0 and use_gpu:
         device = "cuda"
     elif torch.backends.mps.is_available() and use_gpu and GLOBAL_ENABLE_MPS:
@@ -151,13 +142,9 @@ def _get_ckpt_path(model_type, use_small=False):
     return os.path.join(CACHE_DIR, REMOTE_MODEL_PATHS[key]["file_name"])
 
 
-def _download(from_hf_path, file_name, destfilename):
+def _download(from_hf_path, file_name):
     os.makedirs(CACHE_DIR, exist_ok=True)
-    hf_hub_download(repo_id=from_hf_path, filename=file_name, local_dir=CACHE_DIR, local_dir_use_symlinks=False)
-    # Bug in original repo? Downloaded name differs from expected...
-    if not os.path.exists(destfilename):
-        localname = os.path.join(CACHE_DIR, file_name)
-        os.rename(localname, destfilename)
+    hf_hub_download(repo_id=from_hf_path, filename=file_name, local_dir=CACHE_DIR)
 
 
 class InferenceContext:
@@ -213,20 +200,11 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
         ModelClass = FineGPT
     else:
         raise NotImplementedError()
-
-    # Force-remove Models to allow running on >12Gb GPU
-    # CF: Probably not needed anymore
-    #global models
-    #models.clear()
-    #gc.collect()
-    #torch.cuda.empty_cache()
-    # to here...
-
     model_key = f"{model_type}_small" if use_small or USE_SMALL_MODELS else model_type
     model_info = REMOTE_MODEL_PATHS[model_key]
     if not os.path.exists(ckpt_path):
         logger.info(f"{model_type} model not found, downloading into `{CACHE_DIR}`.")
-        _download(model_info["repo_id"], model_info["file_name"], ckpt_path)
+        _download(model_info["repo_id"], model_info["file_name"])
     checkpoint = torch.load(ckpt_path, map_location=device)
     # this is a hack
     model_args = checkpoint["model_args"]
@@ -282,7 +260,7 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
         raise NotImplementedError()
     global models
     global models_devices
-    device = grab_best_device(use_gpu=use_gpu)
+    device = _grab_best_device(use_gpu=use_gpu)
     model_key = f"{model_type}"
     if OFFLOAD_CPU:
         models_devices[model_key] = device
@@ -302,7 +280,7 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
 def load_codec_model(use_gpu=True, force_reload=False):
     global models
     global models_devices
-    device = grab_best_device(use_gpu=use_gpu)
+    device = _grab_best_device(use_gpu=use_gpu)
     if device == "mps":
         # encodec doesn't support mps
         device = "cpu"
@@ -326,10 +304,10 @@ def preload_models(
     fine_use_gpu=True,
     fine_use_small=False,
     codec_use_gpu=True,
-    force_reload=False
+    force_reload=False,
 ):
     """Load all the necessary models for the pipeline."""
-    if grab_best_device() == "cpu" and (
+    if _grab_best_device() == "cpu" and (
         text_use_gpu or coarse_use_gpu or fine_use_gpu or codec_use_gpu
     ):
         logger.warning("No GPU being used. Careful, inference might be very slow!")
@@ -377,8 +355,8 @@ def _load_history_prompt(history_prompt_input):
     elif isinstance(history_prompt_input, str):
         # make sure this works on non-ubuntu
         history_prompt_input = os.path.join(*history_prompt_input.split("/"))
-#        if history_prompt_input not in ALLOWED_PROMPTS:
-#            raise ValueError("history prompt not found")
+        if history_prompt_input not in ALLOWED_PROMPTS:
+            raise ValueError("history prompt not found")
         history_prompt = np.load(
             os.path.join(CUR_PATH, "assets", "prompts", f"{history_prompt_input}.npz")
         )
