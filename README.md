@@ -1,5 +1,11 @@
 # Bark GUI
 
+## To do: 
+
+### (1) Users can directly add .npz file to the voice generation part (not very important)
+### (2) Add Voice Conversion to Bark Infinity (worth a try!)
+### (3) Check out what's new in JonathanFly/bark
+
 [Changelog](#-changelog) • [Example](#-example-input) • [Installation](#-installation) • [Usage](#-usage) • [FAQ](#-faq)
 
 
